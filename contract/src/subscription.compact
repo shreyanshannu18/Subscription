@@ -1,0 +1,61 @@
+// Privacy-Preserving Subscription Smart Contract for Midnight Network
+//
+// PUBLIC DATA:
+// - state: PlanTier - current active subscription tier on ledger (INACTIVE, BASIC, PREMIUM, ENTERPRISE).
+// - activeTier: PlanTier - tier status for verification.
+// - sequence: Counter - monotonic contract interaction sequence.
+// - owner: Bytes<32> - public identity commitment derived from user's secret key & sequence.
+// - totalSubscribers: Counter - total count of subscriptions registered.
+//
+// PRIVATE DATA:
+// - localSecretKey(): Bytes<32> - private witness function providing user's secret key off-chain.
+//
+// PRIVACY GUARANTEES:
+// - User's private key and personal identifying details remain completely private on their local device.
+// - Zero-knowledge proof generation ensures subscribers verify valid tier ownership without revealing payment details or identity on-chain.
+
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+export enum PlanTier {
+  INACTIVE,
+  BASIC,
+  PREMIUM,
+  ENTERPRISE
+}
+
+export ledger state: PlanTier;
+export ledger activeTier: PlanTier;
+export ledger sequence: Counter;
+export ledger owner: Bytes<32>;
+export ledger totalSubscribers: Counter;
+
+constructor() {
+  state = PlanTier.INACTIVE;
+  activeTier = PlanTier.INACTIVE;
+  sequence.increment(1);
+  totalSubscribers.increment(0);
+}
+
+witness localSecretKey(): Bytes<32>;
+
+export circuit subscribe(tier: PlanTier): [] {
+  assert(tier != PlanTier.INACTIVE, "Invalid subscription tier requested");
+  owner = disclose(publicKey(localSecretKey(), sequence as Field as Bytes<32>));
+  state = disclose(tier);
+  activeTier = disclose(tier);
+  totalSubscribers.increment(1);
+}
+
+export circuit cancelSubscription(): [] {
+  assert(state != PlanTier.INACTIVE, "No active subscription to cancel");
+  assert(owner == publicKey(localSecretKey(), sequence as Field as Bytes<32>), "Unauthorized: Only subscription owner can cancel");
+  state = PlanTier.INACTIVE;
+  activeTier = PlanTier.INACTIVE;
+  sequence.increment(1);
+}
+
+export circuit publicKey(sk: Bytes<32>, sequence: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "subscription:pk:"), sequence, sk]);
+}
