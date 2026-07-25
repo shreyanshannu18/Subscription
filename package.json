@@ -1,5 +1,5 @@
 {
-  "name": "@midnight-ntwrk/example-bboard",
+  "name": "@midnight-ntwrk/subscription-dapp",
   "version": "0.1.0",
   "author": "IOG",
   "license": "MIT",
@@ -15,6 +15,10 @@
       "api",
       "contract"
     ]
+  },
+  "scripts": {
+    "compact": "npm run compact --workspace=contract",
+    "build": "npm run build --workspace=contract && npm run build --workspace=api && npm run build --workspace=bboard-cli && npm run build --workspace=bboard-ui"
   },
   "dependencies": {
     "@midnight-ntwrk/dapp-connector-api": "4.0.1",
