@@ -1,43 +1,17 @@
-// This file is part of midnightntwrk/example-bboard.
-// Copyright (C) Midnight Foundation
+// Subscription Empty Card Content
 // SPDX-License-Identifier: Apache-2.0
-// Licensed under the Apache License, Version 2.0 (the "License");
-// You may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 import React, { useState } from 'react';
 import { type ContractAddress } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { CardActions, CardContent, IconButton, Tooltip, Typography } from '@mui/material';
-import BoardAddIcon from '@mui/icons-material/PostAddOutlined';
-import CreateBoardIcon from '@mui/icons-material/AddCircleOutlined';
-import JoinBoardIcon from '@mui/icons-material/AddLinkOutlined';
-import { TextPromptDialog } from './TextPromptDialog';
+import { PostAddOutlined as BoardAddIcon, AddCircleOutlined as CreateBoardIcon, AddLinkOutlined as JoinBoardIcon } from '@mui/icons-material';
+import { TextPromptDialog } from './TextPromptDialog.js';
 
-/**
- * The props required by the {@link EmptyCardContent} component.
- *
- * @internal
- */
 export interface EmptyCardContentProps {
-  /** A callback that will be called to create a new bulletin board. */
   onCreateBoardCallback: () => void;
-  /** A callback that will be called to join an existing bulletin board. */
   onJoinBoardCallback: (contractAddress: ContractAddress) => void;
 }
 
-/**
- * Used when there is no board deployment to render a UI allowing the user to join or deploy bulletin boards.
- *
- * @internal
- */
 export const EmptyCardContent: React.FC<Readonly<EmptyCardContentProps>> = ({
   onCreateBoardCallback,
   onJoinBoardCallback,
@@ -46,33 +20,34 @@ export const EmptyCardContent: React.FC<Readonly<EmptyCardContentProps>> = ({
 
   return (
     <React.Fragment>
-      <CardContent>
-        <Typography align="center" variant="h1" color="primary.dark">
+      <CardContent sx={{ pt: 6 }}>
+        <Typography align="center" variant="h1" color="primary">
           <BoardAddIcon fontSize="large" />
         </Typography>
-        <Typography data-testid="board-posted-message" align="center" variant="body2" color="primary.dark">
-          Create a new Board, or join an existing one...
+        <Typography data-testid="subscription-prompt-msg" align="center" variant="body2" color="gray" sx={{ mt: 2 }}>
+          Deploy a new Subscription Contract, or join an existing deployed contract address (<Typography component="span" sx={{ fontFamily: 'monospace', color: '#90caf9' }}>&lt;YOUR_DEPLOYED_CONTRACT_ADDRESS&gt;</Typography>)...
         </Typography>
       </CardContent>
-      <CardActions disableSpacing sx={{ justifyContent: 'center' }}>
-        <Tooltip title="Create a new board">
-          <IconButton data-testid="board-deploy-btn" onClick={onCreateBoardCallback}>
-            <CreateBoardIcon />
+      <CardActions disableSpacing sx={{ justifyContent: 'center', pb: 4 }}>
+        <Tooltip title="Deploy Subscription Contract">
+          <IconButton data-testid="board-deploy-btn" onClick={onCreateBoardCallback} color="primary">
+            <CreateBoardIcon fontSize="large" />
           </IconButton>
         </Tooltip>
-        <Tooltip title="Join an existing board">
+        <Tooltip title="Join Existing Contract">
           <IconButton
             data-testid="board-join-btn"
+            color="secondary"
             onClick={() => {
               setTextPromptOpen(true);
             }}
           >
-            <JoinBoardIcon />
+            <JoinBoardIcon fontSize="large" />
           </IconButton>
         </Tooltip>
       </CardActions>
       <TextPromptDialog
-        prompt="Enter contract address"
+        prompt="Enter contract address (<YOUR_DEPLOYED_CONTRACT_ADDRESS>)"
         isOpen={textPromptOpen}
         onCancel={() => {
           setTextPromptOpen(false);

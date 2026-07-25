@@ -1,17 +1,5 @@
-// This file is part of midnightntwrk/example-bboard.
-// Copyright (C) Midnight Foundation
+// Subscription DApp Component
 // SPDX-License-Identifier: Apache-2.0
-// Licensed under the Apache License, Version 2.0 (the "License");
-// You may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { type ContractAddress } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
@@ -25,94 +13,68 @@ import {
   IconButton,
   Skeleton,
   Typography,
-  TextField,
+  Button,
+  Chip,
+  Stack,
 } from '@mui/material';
-import LockIcon from '@mui/icons-material/Lock';
-import LockOpenIcon from '@mui/icons-material/LockOpen';
-import DeleteIcon from '@mui/icons-material/DeleteOutlined';
-import WriteIcon from '@mui/icons-material/EditNoteOutlined';
-import CopyIcon from '@mui/icons-material/ContentPasteOutlined';
-import StopIcon from '@mui/icons-material/HighlightOffOutlined';
-import { type BBoardDerivedState, type DeployedBBoardAPI } from '../../../api/src/index';
-import { useDeployedBoardContext } from '../hooks';
-import { type BoardDeployment } from '../contexts';
+import {
+  LockOpen as LockOpenIcon,
+  DeleteOutlined as DeleteIcon,
+  ContentPasteOutlined as CopyIcon,
+  HighlightOffOutlined as StopIcon,
+  VerifiedUser as VerifiedUserIcon,
+  Star as StarIcon,
+} from '@mui/icons-material';
+import { type SubscriptionDerivedState, type DeployedSubscriptionAPI } from '../../../api/src/index.js';
+import { useDeployedBoardContext } from '../hooks/index.js';
+import { type SubscriptionDeployment } from '../contexts/index.js';
 import { type Observable } from 'rxjs';
-import { State } from '../../../contract/src/index';
-import { EmptyCardContent } from './Board.EmptyCardContent';
+import { PlanTier } from '../../../contract/src/index.js';
+import { EmptyCardContent } from './Board.EmptyCardContent.js';
 
-/** The props required by the {@link Board} component. */
 export interface BoardProps {
-  /** The observable bulletin board deployment. */
-  boardDeployment$?: Observable<BoardDeployment>;
+  boardDeployment$?: Observable<SubscriptionDeployment>;
 }
 
-/**
- * Provides the UI for a deployed bulletin board contract; allowing messages to be posted or removed
- * following the rules enforced by the underlying Compact contract.
- *
- * @remarks
- * With no `boardDeployment$` observable, the component will render a UI that allows the user to create
- * or join bulletin boards. It requires a `<DeployedBoardProvider />` to be in scope in order to manage
- * these additional boards. It does this by invoking the `resolve(...)` method on the currently in-
- * scope `DeployedBoardContext`.
- *
- * When a `boardDeployment$` observable is received, the component begins by rendering a skeletal view of
- * itself, along with a loading background. It does this until the board deployment receives a
- * `DeployedBBoardAPI` instance, upon which it will then subscribe to its `state$` observable in order
- * to start receiving the changes in the bulletin board state (i.e., when a user posts a new message).
- */
 export const Board: React.FC<Readonly<BoardProps>> = ({ boardDeployment$ }) => {
   const boardApiProvider = useDeployedBoardContext();
-  const [boardDeployment, setBoardDeployment] = useState<BoardDeployment>();
-  const [deployedBoardAPI, setDeployedBoardAPI] = useState<DeployedBBoardAPI>();
+  const [boardDeployment, setBoardDeployment] = useState<SubscriptionDeployment>();
+  const [deployedBoardAPI, setDeployedBoardAPI] = useState<DeployedSubscriptionAPI>();
   const [errorMessage, setErrorMessage] = useState<string>();
-  const [boardState, setBoardState] = useState<BBoardDerivedState>();
-  const [messagePrompt, setMessagePrompt] = useState<string>();
+  const [boardState, setBoardState] = useState<SubscriptionDerivedState>();
   const [isWorking, setIsWorking] = useState(!!boardDeployment$);
 
-  // Two simple callbacks that call `resolve(...)` to either deploy or join a bulletin board
-  // contract. Since the `DeployedBoardContext` will create a new board and update the UI, we
-  // don't have to do anything further once we've called `resolve`.
   const onCreateBoard = useCallback(() => boardApiProvider.resolve(), [boardApiProvider]);
   const onJoinBoard = useCallback(
     (contractAddress: ContractAddress) => boardApiProvider.resolve(contractAddress),
     [boardApiProvider],
   );
 
-  // Callback to handle the posting of a message. The message text is captured in the `messagePrompt`
-  // state, and we just need to forward it to the `post` method of the `DeployedBBoardAPI` instance
-  // that we received in the `deployedBoardAPI` state.
-  const onPostMessage = useCallback(async () => {
-    if (!messagePrompt) {
-      return;
-    }
-
+  const onSubscribe = useCallback(async (tier: PlanTier) => {
     try {
       if (deployedBoardAPI) {
         setIsWorking(true);
-        await deployedBoardAPI.post(messagePrompt);
+        await deployedBoardAPI.subscribe(tier);
       }
     } catch (error: unknown) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setIsWorking(false);
     }
-  }, [deployedBoardAPI, setErrorMessage, setIsWorking, messagePrompt]);
+  }, [deployedBoardAPI]);
 
-  // Callback to handle the taking down of a message. Again, we simply invoke the `takeDown` method
-  // of the `DeployedBBoardAPI` instance.
-  const onDeleteMessage = useCallback(async () => {
+  const onCancelSubscription = useCallback(async () => {
     try {
       if (deployedBoardAPI) {
         setIsWorking(true);
-        await deployedBoardAPI.takeDown();
+        await deployedBoardAPI.cancelSubscription();
       }
     } catch (error: unknown) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setIsWorking(false);
     }
-  }, [deployedBoardAPI, setErrorMessage, setIsWorking]);
+  }, [deployedBoardAPI]);
 
   const onCopyContractAddress = useCallback(async () => {
     if (deployedBoardAPI) {
@@ -120,88 +82,64 @@ export const Board: React.FC<Readonly<BoardProps>> = ({ boardDeployment$ }) => {
     }
   }, [deployedBoardAPI]);
 
-  // Subscribes to the `boardDeployment$` observable so that we can receive updates on the deployment.
   useEffect(() => {
-    if (!boardDeployment$) {
-      return;
-    }
-
+    if (!boardDeployment$) return;
     const subscription = boardDeployment$.subscribe(setBoardDeployment);
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [boardDeployment$]);
 
-  // Subscribes to the `state$` observable on a `DeployedBBoardAPI` if we receive one, allowing the
-  // component to receive updates to the change in contract state; otherwise we update the UI to
-  // reflect the error was received instead.
   useEffect(() => {
-    if (!boardDeployment) {
-      return;
-    }
-    if (boardDeployment.status === 'in-progress') {
-      return;
-    }
+    if (!boardDeployment || boardDeployment.status === 'in-progress') return;
 
     setIsWorking(false);
-
     if (boardDeployment.status === 'failed') {
-      setErrorMessage(
-        boardDeployment.error.message.length ? boardDeployment.error.message : 'Encountered an unexpected error.',
-      );
+      setErrorMessage(boardDeployment.error.message || 'Encountered an unexpected error.');
       return;
     }
 
-    // We need the board API as well as subscribing to its `state$` observable, so that we can invoke
-    // the `post` and `takeDown` methods later.
     setDeployedBoardAPI(boardDeployment.api);
     const subscription = boardDeployment.api.state$.subscribe(setBoardState);
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [boardDeployment, setIsWorking, setErrorMessage, setDeployedBoardAPI]);
+    return () => subscription.unsubscribe();
+  }, [boardDeployment]);
+
+  const getTierLabel = (tier?: PlanTier) => {
+    switch (tier) {
+      case PlanTier.BASIC: return 'BASIC TIER';
+      case PlanTier.PREMIUM: return 'PREMIUM TIER';
+      case PlanTier.ENTERPRISE: return 'ENTERPRISE TIER';
+      default: return 'NO ACTIVE SUBSCRIPTION';
+    }
+  };
 
   return (
-    <Card sx={{ position: 'relative', width: 275, height: 300, minWidth: 275, minHeight: 300 }} color="primary">
+    <Card sx={{ position: 'relative', width: 340, minHeight: 380, borderRadius: 3, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', background: '#121212', color: '#fff' }}>
       {!boardDeployment$ && (
         <EmptyCardContent onCreateBoardCallback={onCreateBoard} onJoinBoardCallback={onJoinBoard} />
       )}
 
       {boardDeployment$ && (
         <React.Fragment>
-          <Backdrop
-            sx={{ position: 'absolute', color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
-            open={isWorking}
-          >
-            <CircularProgress data-testid="board-working-indicator" />
+          <Backdrop sx={{ position: 'absolute', color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={isWorking}>
+            <CircularProgress color="secondary" />
           </Backdrop>
-          <Backdrop
-            sx={{ position: 'absolute', color: '#ff0000', zIndex: (theme) => theme.zIndex.drawer + 1 }}
-            open={!!errorMessage}
-          >
+          <Backdrop sx={{ position: 'absolute', color: '#ff4d4d', zIndex: (theme) => theme.zIndex.drawer + 1, flexDirection: 'column', padding: 2 }} open={!!errorMessage}>
             <StopIcon fontSize="large" />
-            <Typography component="div" data-testid="board-error-message">
-              {errorMessage}
-            </Typography>
+            <Typography variant="body2" sx={{ textAlign: 'center', mt: 1 }}>{errorMessage}</Typography>
           </Backdrop>
+
           <CardHeader
             avatar={
-              boardState ? (
-                boardState.state === State.VACANT || (boardState.state === State.OCCUPIED && boardState.isOwner) ? (
-                  <LockOpenIcon data-testid="post-unlocked-icon" />
-                ) : (
-                  <LockIcon data-testid="post-locked-icon" />
-                )
+              boardState?.state !== PlanTier.INACTIVE ? (
+                <VerifiedUserIcon color="success" />
               ) : (
-                <Skeleton variant="circular" width={20} height={20} />
+                <LockOpenIcon color="disabled" />
               )
             }
-            titleTypographyProps={{ color: 'primary' }}
-            title={toShortFormatContractAddress(deployedBoardAPI?.deployedContractAddress) ?? 'Loading...'}
+            titleTypographyProps={{ color: '#fff', fontWeight: 'bold' }}
+            title={toShortFormatContractAddress(deployedBoardAPI?.deployedContractAddress) ?? '<YOUR_DEPLOYED_CONTRACT_ADDRESS>'}
             action={
               deployedBoardAPI?.deployedContractAddress ? (
-                <IconButton title="Copy contract address" onClick={onCopyContractAddress}>
+                <IconButton title="Copy contract address" onClick={onCopyContractAddress} sx={{ color: '#aaa' }}>
                   <CopyIcon fontSize="small" />
                 </IconButton>
               ) : (
@@ -209,59 +147,71 @@ export const Board: React.FC<Readonly<BoardProps>> = ({ boardDeployment$ }) => {
               )
             }
           />
+
           <CardContent>
             {boardState ? (
-              boardState.state === State.OCCUPIED ? (
-                <Typography data-testid="board-posted-message" sx={{ minHeight: 160 }} color="primary">
-                  {boardState.message}
-                </Typography>
-              ) : (
-                <TextField
-                  id="message-prompt"
-                  data-testid="board-message-prompt"
-                  variant="outlined"
-                  focused
-                  fullWidth
-                  multiline
-                  minRows={6}
-                  maxRows={6}
-                  placeholder="Message to post"
-                  size="small"
-                  color="primary"
-                  slotProps={{ htmlInput: { style: { color: 'black' } } }}
-                  onChange={(e) => {
-                    setMessagePrompt(e.target.value);
-                  }}
+              <Stack spacing={2}>
+                <Chip
+                  icon={<StarIcon />}
+                  label={getTierLabel(boardState.state)}
+                  color={boardState.state !== PlanTier.INACTIVE ? 'primary' : 'default'}
+                  variant={boardState.state !== PlanTier.INACTIVE ? 'filled' : 'outlined'}
+                  sx={{ fontWeight: 'bold' }}
                 />
-              )
+
+                <Typography variant="body2" color="gray">
+                  Privacy Guarantee: Zero-Knowledge proof verifies your subscription status without revealing your identity or payment key.
+                </Typography>
+
+                <Stack spacing={1}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="small"
+                    disabled={boardState.state === PlanTier.BASIC}
+                    onClick={() => onSubscribe(PlanTier.BASIC)}
+                  >
+                    Subscribe Basic (0.1 NIGHT)
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    size="small"
+                    disabled={boardState.state === PlanTier.PREMIUM}
+                    onClick={() => onSubscribe(PlanTier.PREMIUM)}
+                  >
+                    Subscribe Premium (0.5 NIGHT)
+                  </Button>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="small"
+                    disabled={boardState.state === PlanTier.ENTERPRISE}
+                    onClick={() => onSubscribe(PlanTier.ENTERPRISE)}
+                  >
+                    Subscribe Enterprise (1.0 NIGHT)
+                  </Button>
+                </Stack>
+              </Stack>
             ) : (
-              <Skeleton variant="rectangular" width={245} height={160} />
+              <Skeleton variant="rectangular" width="100%" height={180} />
             )}
           </CardContent>
-          <CardActions>
-            {deployedBoardAPI ? (
-              <React.Fragment>
-                <IconButton
-                  title="Post message"
-                  data-testid="board-post-message-btn"
-                  disabled={boardState?.state === State.OCCUPIED || !messagePrompt?.length}
-                  onClick={onPostMessage}
-                >
-                  <WriteIcon />
-                </IconButton>
-                <IconButton
-                  title="Take down message"
-                  data-testid="board-take-down-message-btn"
-                  disabled={
-                    boardState?.state === State.VACANT || (boardState?.state === State.OCCUPIED && !boardState.isOwner)
-                  }
-                  onClick={onDeleteMessage}
-                >
-                  <DeleteIcon />
-                </IconButton>
-              </React.Fragment>
+
+          <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
+            {deployedBoardAPI && boardState ? (
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                startIcon={<DeleteIcon />}
+                disabled={boardState.state === PlanTier.INACTIVE}
+                onClick={onCancelSubscription}
+              >
+                Cancel Subscription
+              </Button>
             ) : (
-              <Skeleton variant="rectangular" width={80} height={20} />
+              <Skeleton variant="rectangular" width={120} height={30} />
             )}
           </CardActions>
         </React.Fragment>
@@ -270,11 +220,9 @@ export const Board: React.FC<Readonly<BoardProps>> = ({ boardDeployment$ }) => {
   );
 };
 
-/** @internal */
 const toShortFormatContractAddress = (contractAddress: ContractAddress | undefined): React.ReactElement | undefined =>
-  // Returns a new string made up of the first, and last, 8 characters of a given contract address.
   contractAddress ? (
-    <span data-testid="board-address">
-      0x{contractAddress?.replace(/^[A-Fa-f0-9]{6}([A-Fa-f0-9]{8}).*([A-Fa-f0-9]{8})$/g, '$1...$2')}
+    <span data-testid="subscription-address">
+      0x{contractAddress.replace(/^[A-Fa-f0-9]{6}([A-Fa-f0-9]{8}).*([A-Fa-f0-9]{8})$/g, '$1...$2')}
     </span>
   ) : undefined;
